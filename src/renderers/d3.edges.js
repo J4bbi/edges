@@ -359,6 +359,10 @@ $.extend(edges, {
             // this is the spacing between the mouse pointer and where the top left of the tool tip appears
             this.toolTipLeftOffset = edges.getParam(params.toolTipLeftOffset, 30);
             this.toolTipTopOffset = edges.getParam(params.toolTipTopOffset, 5);
+            this.tooltipType = edges.getParam(params.tooltipType, 'default');
+            this.urlTemplate = edges.getParam(params.urlTemplate);
+            this.mapTooltipTemplate = edges.getParam(params.mapTooltipTemplate);
+            this.resultsNumber = edges.getParam(params.resultsNumber, 3);
 
             this.functions = {
                 renderRegionData: edges.getParam(params.renderRegionData, false)
@@ -472,7 +476,7 @@ $.extend(edges, {
                         projection.precision(that.resamplingPrecision);
                     }
 
-                    var show = edges.objClosure(that, "showToolTip", ["d"]);
+                    var show = edges.objClosure(that, "showToolTip", ["d", "tooltipType", "urlTemplate", "mapTooltipTemplate", "resultsCount"]);
                     var hide = edges.objClosure(that, "hideToolTip", ["d"]);
                     var pin = edges.objClosure(that, "togglePinToolTip", ["d"]);
 
@@ -487,9 +491,10 @@ $.extend(edges, {
                         .style("stroke", function(d) { return that._getStroke({d : d}) })
                         .style("stroke-width", function(d) { return that._getStrokeWidth({d : d}) })
                         .style("fill", function(d) { return that._getFill({d : d}) })
-                        .on("mouseover", show)// FIXME: we should seriously consider breaking these out to a separate block, so that we can set them conditionally
-                        .on("mouseout", hide)
+                        .on("mouseover", function(d) { show(d, that.tooltipType, that.urlTemplate, that.mapTooltipTemplate, that.resultsNumber) })
+                        .on("mouseout", hide) // FIXME: we should seriously consider breaking these out to a separate block, so that we can set them conditionally
                         .on("click", pin);
+
 
                     if (that.preDisplayToolTips !== false) {
                         for (var i = 0; i < json.features.length; i++) {
@@ -655,14 +660,64 @@ $.extend(edges, {
                         regionData = this._getRegionData({d: d});
                     }
 
-                    var frag = this._renderRegionData({regionData: regionData, d : d, superRegionId: superRegionId});
+                    var tooltipType = edges.getParam(params.tooltipType, 'default');
 
-                    this.container.append("div")
-                        .attr("id", cssId)
-                        .attr("class", tooltipClass + " " + visibleClass)
-                        .attr("data-id", id)
-                        .html(frag)
-                        .attr("style", this._positionStyles({ref : position}));
+                    var self = this;
+
+                    if (tooltipType === 'api') {
+                        var urlTemplate = edges.getParam(params.urlTemplate, '');
+                        var mapTooltipTemplate = edges.getParam(params.mapTooltipTemplate, '');
+                        var resultsCount = edges.getParam(params.resultsCount, 3);
+
+                        $.ajax({
+                                url : urlTemplate + d.properties.name})
+                            .done(function(data){
+                                var results = data.response.results;
+
+                                var frag = mapTooltipTemplate.replace("{{CountryName}}", d.properties.name);
+
+                                for (var i = 0; i < resultsCount; i++) {
+
+                                    var re = new RegExp("{{results\\[" + i.toString() + "\\].+?}}", "g");
+
+                                    var matchesNumber = frag.match(re).length;
+
+                                    for (var n = 0; n < matchesNumber; n++) {
+                                        var match = frag.match(re)[0];
+
+                                        var items = match.split(".");
+
+                                        for (var m = 0; m < items.length; m++ ){
+                                            items[m] = items[m].replace("{{", "");
+                                            items[m] = items[m].replace("}}", "");
+                                        }
+
+                                        if (items.length == 2) {
+                                            frag = frag.replace(match, results[i][items[1]])
+                                        } else if (items.length == 3) {
+                                            frag = frag.replace(match, results[i][items[1]][items[2]])
+                                        }
+
+                                    }
+                                }
+
+                                self.container.append("div")
+                                    .attr("id", cssId)
+                                    .attr("class", tooltipClass + " " + visibleClass)
+                                    .attr("data-id", id)
+                                    .html(frag)
+                                    .attr("style", self._positionStyles({ref : position}));
+                            });
+                    } else if (tooltipType === 'default') {
+                        var frag = self._renderRegionData({regionData: regionData, d : d, superRegionId: superRegionId});
+
+                        self.container.append("div")
+                            .attr("id", cssId)
+                            .attr("class", tooltipClass + " " + visibleClass)
+                            .attr("data-id", id)
+                            .html(frag)
+                            .attr("style", self._positionStyles({ref : position}));
+                    }
                     el = this.component.jq(cssIdSelector);
                 } else {
                     el.attr("style", this._positionStyles({ref : position})).attr("class", tooltipClass + " " + visibleClass);
