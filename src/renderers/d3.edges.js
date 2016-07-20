@@ -378,7 +378,8 @@ $.extend(edges, {
             this.projectionMap = {
                 "mercator" : d3.geo.mercator,
                 "conicConformal": d3.geo.conicConformal,
-                "albersUsa" : d3.geo.albersUsa
+                "albersUsa" : d3.geo.albersUsa,
+                "orthographic" : d3.geo.orthographic,
             };
 
             // need to keep track of the svg for use in object methods
@@ -670,7 +671,7 @@ $.extend(edges, {
                         var resultsCount = edges.getParam(params.resultsCount, 3);
 
                         $.ajax({
-                                url : urlTemplate + d.properties.name})
+                            url : urlTemplate + d.properties.name})
                             .done(function(data){
                                 var results = data.response.results;
 
@@ -718,7 +719,6 @@ $.extend(edges, {
                             .html(frag)
                             .attr("style", self._positionStyles({ref : position}));
                     }
-                    el = this.component.jq(cssIdSelector);
                 } else {
                     el.attr("style", this._positionStyles({ref : position})).attr("class", tooltipClass + " " + visibleClass);
                 }
